@@ -18,7 +18,9 @@ echo_times(){
    # from 3dTstat:
    #  1D files read into 3dXXX programs are interpreted as
    #  having the time direction along the rows rather than down the columns.
-   jq -r .EchoTime*1000 "$1"/*json #|paste -sd' ';
+   mapfile -t json < <(find "$1" -iname '*json')
+   [ ${#json[@]} -eq 0 ] && return #warn "# no json for $1" && return
+   jq -r .EchoTime*1000 "${json[@]}" #|paste -sd' ';
 }
 
 rm_not_tr_cnt(){
@@ -28,6 +30,13 @@ rm_not_tr_cnt(){
    ntr=$(test -r "$2" && 3dinfo -nt "$2" || echo -1)
    [ "$nline" -ne "$ntr" ] && warn "# WARN: $1 has $nline lines not $ntr of $2" && dryrun rm "$1"
    return 0
+}
+bucket_expected(){
+   nii="$1"; shift
+   n="$1"; shift
+   [ $# -ne "$n" ] && warn "ERROR: would make '$nii' w/ $# volumes; expect $n" && return 1
+   test -r "$nii" ||
+      dryrun 3dbucket -prefix "$_" "$@"
 }
 
 setup_r2prime() {
@@ -42,12 +51,11 @@ setup_r2prime() {
    # anat-mT2  anat-mT2star  anat-mT2star_1  anat-T1w_acq-mprage
    test -d "$out" ||
       dryrun mkdir -p "$out"
-   test -r "$out"/mtse.nii.gz ||
-      dryrun 3dbucket -prefix "$_" "$indir/anat-mT2/"*.nii.gz
-   test -r "$out"/mgre_mag.nii.gz ||
-      dryrun 3dbucket -prefix "$_" "$indir/anat-mT2star/"*.nii.gz
-   test -r "$out"/mgre_pha.nii.gz  ||
-      dryrun 3dbucket -prefix "$_" "$indir/anat-mT2star_1/"*.nii.gz
+
+   bucket_expected "$out"/mtse.nii.gz 3 "$indir/anat-mT2/"*.nii.gz
+   bucket_expected "$out"/mgre_mag.nii.gz 4 "$indir/anat-mT2star/"*.nii.gz
+   bucket_expected "$out"/mgre_pha.nii.gz 4 "$indir/anat-mT2star_1/"*.nii.gz
+
    test -r "$out/anat_fast.nii.gz" ||
       dryrun 3dcopy "$last_anat" "$_"
 
