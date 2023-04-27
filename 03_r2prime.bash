@@ -15,7 +15,7 @@ R2P=/opt/ni_tools/r2prime-prisma
      indirs=("$@")
   
   for d in "${indirs[@]}"; do
-     /opt/ni_tools/r2prime-prisma/r2prime "$d" &
+     (/opt/ni_tools/r2prime-prisma/r2prime "$d" | tee -a "$d/r2prime.log" ) &
      waitforjobs -j 10
   done
   wait
