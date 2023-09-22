@@ -18,7 +18,7 @@ echo_times(){
    # from 3dTstat:
    #  1D files read into 3dXXX programs are interpreted as
    #  having the time direction along the rows rather than down the columns.
-   mapfile -t json < <(find "$1" -iname '*json')
+   mapfile -t json < <(find "$1" -iname '*json' -not -iname '*_ph.json')
    [ ${#json[@]} -eq 0 ] && return #warn "# no json for $1" && return
    jq -r .EchoTime*1000 "${json[@]}" #|paste -sd' ';
 }
@@ -34,7 +34,7 @@ rm_not_tr_cnt(){
 bucket_expected(){
    nii="$1"; shift
    n="$1"; shift
-   [ $# -ne "$n" ] && warn "ERROR: would make '$nii' w/ $# volumes; expect $n" && return 1
+   [ $# -ne "$n" ] && warn "ERROR: would make '$nii' w/ $# volumes; expect $n ($*)" && return 1
    test -r "$nii" ||
       dryrun 3dbucket -prefix "$_" "$@"
 }
@@ -42,28 +42,35 @@ bucket_expected(){
 setup_r2prime() {
    indir="$1"
    out=$(mk_outdir "$indir")
-   for checkd in "$indir"/anat-{mT2,mT2star{,_1},T1w_acq-mprage}/; do
+   for checkd in "$indir"/anat[_-]{mT2,mT2star}/; do
       ! test -d "$checkd" && echo "ERROR: missing $checkd" && return 1
    done
-   last_anat=$(find "$indir/anat-T1w_acq-mprage"/*.nii.gz |tail -n1)
+   last_anat=$(find "$indir/anat"[_-]T1w_acq[_-]mprage/*.nii.gz |tail -n1)
    [ -z "$last_anat" ] && echo "ERROR: no anat in $indir!" && return 2
 
    # anat-mT2  anat-mT2star  anat-mT2star_1  anat-T1w_acq-mprage
    test -d "$out" ||
       dryrun mkdir -p "$out"
 
-   bucket_expected "$out"/mtse.nii.gz 3 "$indir/anat-mT2/"*.nii.gz
-   bucket_expected "$out"/mgre_mag.nii.gz 4 "$indir/anat-mT2star/"*.nii.gz
-   bucket_expected "$out"/mgre_pha.nii.gz 4 "$indir/anat-mT2star_1/"*.nii.gz
+   # tse is mt
+
+   bucket_expected "$out"/mtse.nii.gz 3 "$indir/anat"[_-]mT2/*[^h].nii.gz
+   # DISABLE SC2010 SC2046
+   bucket_expected "$out"/mgre_mag.nii.gz 4 "$indir/anat"[_-]mT2star/*[^h].nii.gz
+   if test -d "$indir"/anat[_-]mT2star_1/; then
+      bucket_expected "$out"/mgre_pha.nii.gz 4 "$indir/anat"[_-]mT2star_1/*.nii.gz
+   else
+      bucket_expected "$out"/mgre_pha.nii.gz 4 "$indir/anat"[_-]mT2*/*_ph*.nii.gz
+   fi
 
    test -r "$out/anat_fast.nii.gz" ||
       dryrun 3dcopy "$last_anat" "$_"
 
    # record echo times
    test -r "$out/gre_echo_times.1D" ||
-      echo_times "$indir/anat-mT2star"|drytee "$_"
+      echo_times "$indir/"anat[_-]mT2star|drytee "$_"
    test -r "$out/tse_echo_times.1D" ||
-      echo_times "$indir/anat-mT2"|drytee "$_"
+      echo_times "$indir/"anat[_-]mT2|drytee "$_"
 
    # when json is missing, still made empty file
    rm_not_tr_cnt "$out/tse_echo_times.1D" "$out"/mtse.nii.gz
@@ -74,9 +81,10 @@ setup_r2prime() {
 02_organize_nii_main() {
   [ $# -eq 0 ] && echo "USAGE: $0 [all|path/to/rawdir/ path/to/another/]" && exit 1
   [[ "$1" == "all" ]] &&
-     indirs=(../data/raw/*/ses-*/) ||
+     indirs=(../data/raw/*[0-9][0-9][0-9][0-9]/ses-*/) ||
      indirs=("$@")
   for d in "${indirs[@]}"; do
+     echo "# $d"
      setup_r2prime "$d" || continue
   done
   return 0
