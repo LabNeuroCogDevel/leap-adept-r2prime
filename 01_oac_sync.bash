@@ -15,12 +15,12 @@ oac_files() {
 rsync_pipe(){
   rsync -azvhi\
      "$OACMNT" \
-     /Volumes/Hera/Datasets/adept/data/raw --files-from=- "$@"
+     /Volumes/Hera/Datasets/adept/data/raw --ignore-existing --files-from=- "$@"
 }
 
 sync_all(){
    test -d txt || mkdir txt
-   oac_files |tee txt/rsync.ls | rsync_pipe #--dry-run
+   oac_files |tee txt/rsync.ls | rsync_pipe "$@" #--dry-run
 }
 
 eval "$(iffmain sync_all)"
