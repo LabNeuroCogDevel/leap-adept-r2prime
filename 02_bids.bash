@@ -40,19 +40,28 @@ link_bids(){
 
 02_bids_main() {
   cd "$(dirname "$0")" || exit 1
-  find ../data/raw  \
-     -type f \
-       \( -ipath '*T1*' -or -ipath '*bold*' \) -and \
-       \( -iname '*nii.gz' -or -iname '*.json' \) -and \
-       -not -path '*/ADEPT200/*' |
-   while read -r f; do
+  [[ $# -eq 0 || "${1:-}" =~ ^-*h ]] && echo "USAGE: $0 [all|nii.gz]" && exit 0
+  [ "$1" == "all" ] &&
+     mapfile -t FILES < <(
+     find ../data/raw  \
+        -type f \
+          \( -ipath '*T1*' -or -ipath '*bold*' \) -and \
+          \( -iname '*nii.gz' -or -iname '*.json' \) -and \
+          -not -path '*/ADEPT200/*') ||
+   FILES=("$@")
+
+   echo "# running for ${#FILES[@]} files"
+   for f in "${FILES[@]}"; do
      #echo "# $f"
      new="$(bids_name "$f")" || continue
      #echo "#  -> $new"
      link_bids "$f" "$new"
   done
 
-  /opt/ni_tools/npm/bin/bids-validator ../data/BIDS/
+  [ "$1" == "all" ] &&
+    /opt/ni_tools/npm/bin/bids-validator ../data/BIDS/
+
+  return 0
 }
 
 # if not sourced (testing), run as command
