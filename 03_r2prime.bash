@@ -15,7 +15,9 @@ R2P=/opt/ni_tools/r2prime-prisma
      indirs=("$@")
   
   for d in "${indirs[@]}"; do
+     [[ $d =~ ADEPT0294/ses-01 ]] && echo "skippng $d, known to fail. try /opt/ni_tools/r2prime-prisma/r2prime '$d'" && exit 1
      (/opt/ni_tools/r2prime-prisma/r2prime "$d" | tee -a "$d/r2prime.log" ) &
+     sleep 1
      waitforjobs -j 10
   done
   wait
